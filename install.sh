@@ -29,8 +29,25 @@ if [ -z "$BINARY" ]; then
   exit 1
 fi
 
+INSTALL_DIR="/usr/local/bin"
+# 如果 /usr/local/bin 不存在，则使用 /usr/bin
+if [ ! -d "$INSTALL_DIR" ]; then
+  INSTALL_DIR="/usr/bin"
+fi
+
 echo "Downloading $BINARY..."
 curl -L "$BASE_URL/$BINARY" -o tree
 chmod +x tree
-sudo mv tree /usr/local/bin/
-echo "Installation complete!"
+
+if [ "$(id -u)" -eq 0 ]; then
+  mv tree "$INSTALL_DIR/"
+else
+  if command -v sudo >/dev/null 2>&1; then
+    sudo mv tree "$INSTALL_DIR/"
+  else
+    echo "Error: Need root privileges to install to $INSTALL_DIR. Please run as root or install 'sudo'."
+    exit 1
+  fi
+fi
+
+echo "Installation complete! Binary installed to $INSTALL_DIR/tree"

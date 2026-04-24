@@ -22,7 +22,7 @@
 ## ✨ 核心特性
 
 - ⚡️ **极致轻量与高性能**
-  - **内存友好**: 采用流式 HTML 生成技术（DFS 遍历），无需在内存中构建完整目录树。启动占用仅 **1.4MiB**，运行期间内存仅约 **3.0MiB**。
+  - **内存友好**: 采用流式 HTML 生成技术（DFS 遍历），无需在内存中构建完整目录树。启动占用仅 **1.4MiB**，运行期间内存仅约 **2-3.0MiB**。
   - **异步高并发**: 基于 `Axum` + `Tokio` 异步运行时，精简依赖包，响应极快。
   - **极限压缩**: 针对 Release 模式进行了极致优化（LTO, Strip, `opt-level="z"`），部署零负担。
 - 🔍 **智能搜索与聚合 API**
@@ -89,10 +89,26 @@ if [ -z "$BINARY" ]; then
   exit 1
 fi
 
+INSTALL_DIR="/usr/local/bin"
+if [ ! -d "$INSTALL_DIR" ]; then
+  INSTALL_DIR="/usr/bin"
+fi
+
 echo "Downloading $BINARY..."
 curl -L "$BASE_URL/$BINARY" -o tree
 chmod +x tree
-sudo mv tree /usr/local/bin/
+
+if [ "$(id -u)" -eq 0 ]; then
+  mv tree "$INSTALL_DIR/"
+else
+  if command -v sudo >/dev/null 2>&1; then
+    sudo mv tree "$INSTALL_DIR/"
+  else
+    echo "Error: Need root privileges to install to $INSTALL_DIR. Please run as root or install 'sudo'."
+    exit 1
+  fi
+fi
+
 echo "Installation complete!"
 ```
 </details>
