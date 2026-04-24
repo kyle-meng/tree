@@ -24,10 +24,6 @@ jobs:
           - target: aarch64-unknown-linux-musl
             os: ubuntu-latest
             suffix: ""
-          # ARMv7 (Older Routers/Raspberry Pi 3)
-          - target: armv7-unknown-linux-muslhf
-            os: ubuntu-latest
-            suffix: ""
           # macOS (Apple Silicon)
           - target: aarch64-apple-darwin
             os: macos-latest
@@ -58,7 +54,7 @@ jobs:
           cp target/${{ matrix.target }}/release/$BIN_NAME${{ matrix.suffix }} output/$BIN_NAME-${{ matrix.target }}${{ matrix.suffix }}
 
       - name: Compress-With-UPX
-        if: matrix.os == 'ubuntu-latest'
+        if: matrix.target == 'x86_64-unknown-linux-musl'
         uses: svenstaro/upx-action@v2
         with:
           files: output/*
