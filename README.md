@@ -61,7 +61,7 @@ curl -fsSL https://raw.githubusercontent.com/kyle-meng/tree/main/install.sh | ba
 #!/bin/bash
 set -e
 
-OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
+OS="$(uname -s | tr 'A-Z' 'a-z')"
 ARCH="$(uname -m)"
 VERSION="v0.2.1"
 BASE_URL="https://github.com/kyle-meng/tree/releases/download/$VERSION"
