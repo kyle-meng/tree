@@ -4,7 +4,6 @@ use axum::{
     routing::get,
     Json, Router,
 };
-use chrono::{DateTime, Local};
 use clap::Parser;
 use percent_encoding::{utf8_percent_encode, AsciiSet, CONTROLS};
 use std::{
@@ -12,7 +11,6 @@ use std::{
     net::SocketAddr,
     path::{Path, PathBuf},
     sync::Arc,
-    time::SystemTime,
 };
 use tower_http::services::ServeDir;
 use walkdir::WalkDir;
@@ -113,8 +111,22 @@ async fn handle_api_links(
     Json(links)
 }
 
+fn get_file_icon(path: &Path) -> &'static str {
+    let ext = path.extension().and_then(|s| s.to_str()).unwrap_or("").to_lowercase();
+    match ext.as_str() {
+        "mp4" | "mkv" | "avi" | "mov" | "flv" | "wmv" | "webm" | "mpg" | "mpeg" => "🎬",
+        "mp3" | "wav" | "flac" | "ogg" | "m4a" | "aac" | "wma" => "🎵",
+        "jpg" | "jpeg" | "png" | "gif" | "webp" | "svg" | "bmp" | "ico" => "🖼️",
+        "pdf" | "doc" | "docx" | "xls" | "xlsx" | "ppt" | "pptx" => "📄",
+        "txt" | "md" | "json" | "xml" | "yml" | "yaml" | "csv" | "conf" | "sh" | "rs" | "py" | "js" | "html" | "css" => "📝",
+        "zip" | "rar" | "7z" | "tar" | "gz" | "bz2" | "xz" => "📦",
+        "exe" | "msi" | "deb" | "rpm" | "apk" => "💿",
+        _ => "📄",
+    }
+}
+
 async fn handle_html_tree(State(state): State<Arc<AppState>>) -> impl IntoResponse {
-    let mut html = String::with_capacity(16384);
+    let mut html = String::with_capacity(8192);
     html.push_str(r#"<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -124,26 +136,20 @@ async fn handle_html_tree(State(state): State<Arc<AppState>>) -> impl IntoRespon
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; padding: 20px; line-height: 1.6; color: #333; max-width: 1200px; margin: 0 auto; background-color: #f9f9f9; }
         h1 { border-bottom: 2px solid #eee; padding-bottom: 10px; color: #2c3e50; }
-        ul { list-style-type: none; padding-left: 20px; margin: 0; }
-        li { margin: 2px 0; }
-        details { margin: 1px 0; }
-        summary { cursor: pointer; color: #3498db; font-weight: 600; outline: none; list-style: none; display: flex; align-items: center; padding: 4px; border-radius: 4px; }
+        ul { list-style-type: none; padding-left: 24px; margin: 0; }
+        li { margin: 4px 0; }
+        details { margin: 2px 0; }
+        summary { cursor: pointer; color: #3498db; font-weight: 600; outline: none; list-style: none; display: flex; align-items: center; }
         summary::-webkit-details-marker { display: none; }
-        summary:hover { background: #f0f0f0; }
+        summary:hover { color: #2980b9; }
         summary::before { content: "📁 "; display: inline-block; width: 1.5em; flex-shrink: 0; }
         details[open] > summary::before { content: "📂 "; }
-        
-        .item-row { display: flex; align-items: center; justify-content: space-between; padding: 4px 8px; border-radius: 4px; transition: background 0.2s; }
-        .item-row:hover { background: #f0f0f0; }
-        .file-info { display: flex; align-items: center; flex-grow: 1; overflow: hidden; }
-        .file-info::before { content: "📄 "; display: inline-block; width: 1.5em; flex-shrink: 0; }
-        .file-name { color: #2c3e50; text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .file-meta { display: flex; font-size: 0.85em; color: #7f8c8d; flex-shrink: 0; margin-left: 20px; }
-        .meta-size { width: 80px; text-align: right; font-family: monospace; }
-        .meta-time { width: 150px; text-align: right; margin-left: 20px; }
-
+        a { color: #2c3e50; text-decoration: none; display: inline-block; padding: 2px 4px; border-radius: 3px; }
+        a:hover { background-color: #e0e0e0; color: #e67e22; }
+        .file { display: flex; align-items: center; }
+        .file-icon { display: inline-block; width: 1.5em; flex-shrink: 0; }
         .container { background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
-        .search-box { margin-bottom: 20px; position: sticky; top: 0; background: white; padding: 10px 0; z-index: 100; border-bottom: 1px solid #eee; }
+        .search-box { margin-bottom: 20px; position: sticky; top: 0; background: white; padding: 10px 0; z-index: 100; }
         #search { width: 100%; padding: 12px; border: 2px solid #eee; border-radius: 6px; font-size: 16px; transition: border-color 0.3s; }
         #search:focus { border-color: #3498db; outline: none; }
         footer { margin-top: 40px; font-size: 0.8em; color: #95a5a6; text-align: center; }
@@ -171,11 +177,11 @@ async fn handle_html_tree(State(state): State<Arc<AppState>>) -> impl IntoRespon
 
         searchInput.addEventListener('input', (e) => {
             const term = e.target.value.toLowerCase().trim();
-            const allItems = treeRoot.querySelectorAll('li');
+            const allLis = treeRoot.querySelectorAll('li');
             const allDetails = treeRoot.querySelectorAll('details');
 
             if (term === '') {
-                allItems.forEach(li => li.style.display = '');
+                allLis.forEach(li => li.style.display = '');
                 allDetails.forEach(details => {
                     details.style.display = '';
                     details.open = true;
@@ -183,19 +189,18 @@ async fn handle_html_tree(State(state): State<Arc<AppState>>) -> impl IntoRespon
                 return;
             }
 
-            allItems.forEach(li => li.style.display = 'none');
+            allLis.forEach(li => li.style.display = 'none');
             allDetails.forEach(details => {
                 details.style.display = 'none';
                 details.open = false;
             });
 
-            const rows = treeRoot.querySelectorAll('.item-row, summary');
-            rows.forEach(row => {
-                if (row.textContent.toLowerCase().includes(term)) {
-                    let li = row.closest('li');
-                    if (li) li.style.display = 'block';
-                    
-                    let parent = row.parentElement;
+            const files = treeRoot.querySelectorAll('.file');
+            files.forEach(file => {
+                if (file.textContent.toLowerCase().includes(term)) {
+                    let li = file.parentElement;
+                    li.style.display = 'block';
+                    let parent = li.parentElement;
                     while (parent && parent !== treeRoot) {
                         if (parent.tagName === 'DETAILS') {
                             parent.style.display = 'block';
@@ -205,11 +210,24 @@ async fn handle_html_tree(State(state): State<Arc<AppState>>) -> impl IntoRespon
                         }
                         parent = parent.parentElement;
                     }
-
-                    if (row.tagName === 'SUMMARY') {
-                        let details = row.parentElement;
-                        details.style.display = 'block';
-                        details.querySelectorAll(':scope > ul > li').forEach(childLi => childLi.style.display = 'block');
+                }
+            });
+            
+            allDetails.forEach(details => {
+                const summary = details.querySelector('summary');
+                if (summary && summary.textContent.toLowerCase().includes(term)) {
+                    details.style.display = 'block';
+                    details.open = true;
+                    details.querySelectorAll(':scope > ul > li').forEach(li => li.style.display = 'block');
+                    let parent = details.parentElement;
+                    while (parent && parent !== treeRoot) {
+                        if (parent.tagName === 'DETAILS') {
+                            parent.style.display = 'block';
+                            parent.open = true;
+                        } else if (parent.tagName === 'LI' || parent.tagName === 'UL') {
+                            parent.style.display = 'block';
+                        }
+                        parent = parent.parentElement;
                     }
                 }
             });
@@ -219,27 +237,6 @@ async fn handle_html_tree(State(state): State<Arc<AppState>>) -> impl IntoRespon
 </html>"#);
 
     Html(html)
-}
-
-fn format_size(size: u64) -> String {
-    const KB: u64 = 1024;
-    const MB: u64 = KB * 1024;
-    const GB: u64 = MB * 1024;
-
-    if size >= GB {
-        format!("{:.2} GB", size as f64 / GB as f64)
-    } else if size >= MB {
-        format!("{:.2} MB", size as f64 / MB as f64)
-    } else if size >= KB {
-        format!("{:.2} KB", size as f64 / KB as f64)
-    } else {
-        format!("{} B", size)
-    }
-}
-
-fn format_time(time: SystemTime) -> String {
-    let datetime: DateTime<Local> = time.into();
-    datetime.format("%Y-%m-%d %H:%M").to_string()
 }
 
 fn render_html_recursive(root: &Path, current: &Path, prefix: &str, html: &mut String) {
@@ -271,28 +268,11 @@ fn render_html_recursive(root: &Path, current: &Path, prefix: &str, html: &mut S
     } else if let Ok(rel_path) = current.strip_prefix(root) {
         let path_str = rel_path.to_string_lossy();
         let encoded_path = encode_path(&path_str);
-        
-        let (size_str, time_str) = if let Ok(metadata) = current.metadata() {
-            (
-                format_size(metadata.len()),
-                format_time(metadata.modified().unwrap_or(SystemTime::UNIX_EPOCH))
-            )
-        } else {
-            ("-".to_string(), "-".to_string())
-        };
-
+        let icon = get_file_icon(current);
         let _ = write!(
             html,
-            r#"<div class="item-row">
-                <div class="file-info">
-                    <a class="file-name" href="{}/{}">{}</a>
-                </div>
-                <div class="file-meta">
-                    <span class="meta-size">{}</span>
-                    <span class="meta-time">{}</span>
-                </div>
-            </div>"#,
-            prefix, encoded_path, name, size_str, time_str
+            r#"<div class="file"><span class="file-icon">{}</span><a href="{}/{}">{}</a></div>"#,
+            icon, prefix, encoded_path, name
         );
     }
 }
