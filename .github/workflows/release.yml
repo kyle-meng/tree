@@ -53,7 +53,7 @@ jobs:
       - name: Prepare-Artifacts
         run: |
           # Replace 'your_app' with the 'name' field in your Cargo.toml
-          BIN_NAME="your_app" 
+          BIN_NAME="tree" 
           mkdir -p output
           cp target/${{ matrix.target }}/release/$BIN_NAME${{ matrix.suffix }} output/$BIN_NAME-${{ matrix.target }}${{ matrix.suffix }}
 
